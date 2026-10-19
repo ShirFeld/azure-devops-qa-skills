@@ -4,9 +4,12 @@ description: >-
   Updates existing Azure DevOps Test Cases when a User Story has changed
   since they were created or last synced. Supports the Azure projects
   listed in create-test-cases/references/projects.md. Compares the current Title,
-  Description, Acceptance Criteria, and Iteration to the User Story as of
-  the related Test Cases' last change. Adds, updates, or sets obsolete
-  Test Cases to Removed. Does not run validate-work-item-content.
+  Description, Acceptance Criteria, Iteration, and State to the User Story
+  Revision stored in the Suite's sync marker. Adds, updates, or sets
+  obsolete Test Cases to Removed, and advances the marker only after every
+  write succeeded. For Test Cases without a marker, runs an alignment check
+  and asks before setting a starting point. Does not run
+  validate-work-item-content.
   Does not create Test Cases from scratch when none exist.
   Use when the user asks to update test cases, refresh test cases,
   sync test cases, check if a User Story changed before testing,
@@ -79,6 +82,7 @@ says they are related and lists the IDs.
 - Test Case writing rules: `.claude/skills/create-test-cases/references/test-case-rules.md`
 - Open questions: `.claude/skills/create-test-cases/references/qa-analysis.md`
 - Sync rules: `references/sync-rules.md`
+- Sync marker: `.claude/skills/create-test-cases/references/sync-marker.md`
 
 Use Azure DevOps MCP for all Azure DevOps operations.
 
@@ -97,7 +101,7 @@ Do not read or follow `validate-work-item-content`.
 Do not post a missing-content Discussion comment.
 
 If current Description or Acceptance Criteria are empty after they
-were present at the baseline, go to `לא טופלו`.
+were present at `storedRev`, go to `לא טופלו`.
 Do not invent requirements from the Title.
 Do not set every related Test Case to `Removed` only because
 those fields were cleared.
@@ -117,7 +121,11 @@ Read:
 - Area Path
 - Iteration Path
 - Team Project
+- Rev (`System.Rev`)
 - Relations
+
+`targetRev` is the `System.Rev` from this read.
+Every diff in this run is built against `targetRev`.
 
 Read every requested User Story in the user's order.
 
@@ -137,18 +145,29 @@ Read each related Test Case:
 - Title
 - Steps
 - State
-- Created Date
-- Changed Date
-
-`baselineDate` is the latest `System.ChangedDate` among those
-related Test Cases, including Test Cases already in `Removed`.
 
 For coverage matching, ignore Test Cases whose State is already
 `Removed`. Do not resurrect them.
 
+Do not use the Test Cases' `System.ChangedDate` for anything.
+A manual change to a Test Case (Assigned To, tags, Steps) does not
+move the baseline.
+
 ---
 
-### 4. Decide whether this skill may continue
+### 4. Find the Suite and read the sync marker
+
+Follow "Find the Suite" in `references/sync-rules.md`, then
+"Read the marker" in
+`.claude/skills/create-test-cases/references/sync-marker.md`.
+
+`storedRev` is the `rev` in the marker for this User Story.
+
+If no Suite is found, there is no `storedRev`.
+
+---
+
+### 5. Decide whether this skill may continue
 
 Follow `references/sync-rules.md` for each User Story.
 
@@ -157,18 +176,8 @@ If the User Story State is `Removed`:
 - Do not update Test Cases.
 - Do not create Test Cases.
 - Do not post open questions.
+- Do not write the marker.
 - Put it under `לא טופלו`.
-
-If there are no related Test Cases:
-
-- Do not create the first Test Cases from scratch.
-- If Iteration contains `PRODUCT`: put it under `לא טופלו`
-  with reason `Product בלי תרחישים`.
-- If Iteration contains `SPRINT` and an existing Suite is found
-  for this User Story: treat this as Product → Sprint and create
-  the missing Test Cases in that Suite.
-- Otherwise put it under `לא טופלו` with reason
-  `אין תרחישים קשורים` and tell the user to run `create-test-cases`.
 
 If Iteration contains neither `PRODUCT` nor `SPRINT`:
 
@@ -180,12 +189,26 @@ If several related User Stories belong to different projects:
 - Stop and ask the user.
 - Do not assume.
 
+Then choose one path:
+
+| Marker | Related Test Cases (not `Removed`) | Path |
+| --- | --- | --- |
+| yes | any | step 6 — compare `storedRev` to `targetRev` |
+| no | yes | `ללא נקודת התחלה` — "No marker" in `references/sync-rules.md` |
+| no | none | "No related Test Cases" in `references/sync-rules.md` |
+
+Never guess a baseline when there is no marker.
+Never mark existing Test Cases as synced without the user's
+approval.
+
 ---
 
-### 5. Compare the User Story to the baseline
+### 6. Compare the stored Revision to the current Revision
 
-When related Test Cases exist, read the User Story again with
-`wit_work_item` `get` and `asOf: baselineDate`.
+Read the User Story at `storedRev` with `list_revisions`
+(see "Read the User Story at a Revision" in `sync-marker.md`).
+
+Compare it to the User Story at `targetRev` from step 2.
 
 Compare only:
 
@@ -204,6 +227,7 @@ If those compared fields are the same:
 
 - Put the User Story under `אין שינוי`.
 - Do not write to Azure for that User Story.
+  Do not advance the marker.
 
 If they differ, continue.
 
@@ -212,7 +236,7 @@ Description, and Acceptance Criteria are unchanged.
 
 ---
 
-### 6. Load the project configuration
+### 7. Load the project configuration
 
 Read the matching project section from:
 
@@ -230,11 +254,7 @@ Do not use a configured Parent Suite.
 
 ---
 
-### 7. Find the existing Suite
-
-Follow `references/sync-rules.md`.
-
-Look up the Suite by the baseline (`asOf`) User Story Title.
+### 8. Suite rules
 
 Azure DevOps MCP cannot rename a Suite.
 
@@ -252,7 +272,7 @@ Place new Test Cases only in that User Story's Suite.
 
 ---
 
-### 8. Diff requirements and apply updates
+### 9. Diff requirements and apply updates
 
 Read and follow:
 
@@ -271,6 +291,10 @@ Create Test Cases only when Iteration contains `SPRINT`.
 
 Do not create Test Cases titled `QA - שאלות פתוחות`
 or `QA - לשים לב`.
+
+Before each write, check whether it already happened.
+Follow "Resume after a partial failure" in `sync-marker.md`.
+A run after a partial failure must not create duplicates.
 
 If this is not a Dry Run:
 
@@ -298,7 +322,33 @@ Acceptance Criteria, or State.
 
 ---
 
-### 9. Perform additional QA analysis
+### 10. Verify and write the sync marker
+
+If this is a Dry Run, skip this step. Show the marker that would be
+written.
+
+For each User Story that had a material change and finished
+step 9 (also when no Test Case write was needed), and for each
+User Story whose starting point the user approved in step 13:
+
+1. Follow "Verify before marking" in `sync-marker.md`.
+2. If any write failed or any check failed: do not write the
+   marker. Report `סימון סנכרון: לא עודכן — נותר כשל חלקי`.
+3. Follow "User Story changed during the sync" in `sync-marker.md`.
+4. Write `rev = targetRev` with "Write the marker".
+5. If the write fails, follow "Write failure". Do not switch to
+   another storage place.
+
+Do not write the marker for `אין שינוי` or `לא טופלו` items, or for
+`ללא נקודת התחלה` items the user did not approve.
+
+If the material change needed no Test Case write (for example, the
+Iteration contains `PRODUCT` and there are no Test Cases), still
+advance the marker to `targetRev`. The change was reviewed.
+
+---
+
+### 11. Perform additional QA analysis
 
 Read and follow:
 
@@ -310,6 +360,8 @@ are not `Removed`.
 Do not prepare questions for `אין שינוי` User Stories.
 
 Do not prepare questions for `לא טופלו` User Stories.
+
+Do not prepare questions for `ללא נקודת התחלה` User Stories.
 
 If there are genuine questions:
 
@@ -323,7 +375,7 @@ and do not ask.
 
 ---
 
-### 10. Dry Run
+### 12. Dry Run
 
 If the user requests Dry Run / Preview:
 
@@ -331,6 +383,7 @@ If the user requests Dry Run / Preview:
 - Do not create or update anything.
 - Do not set Test Cases to `Removed`.
 - Do not add Discussion comments.
+- Do not write or change the sync marker.
 
 Build the report using proposed values.
 
@@ -347,16 +400,33 @@ Then go to the report and stop.
 
 ---
 
-### 11. Open-question approval
+### 13. Approvals after the report
 
 If this is a Dry Run, skip this ask.
 
-If this is not a Dry Run, and there are candidate questions
-from step 9:
+#### Starting point for `ללא נקודת התחלה`
 
-1. Finish creating, updating, and Removed writes.
+If this is not a Dry Run and a User Story is under
+`ללא נקודת התחלה`, ask after the report.
+Use the prompt in "No marker" in `references/sync-rules.md`.
+
+Write nothing for that User Story before the user answers `כן`.
+
+After `כן`: read the User Story again. If its `System.Rev` is no
+longer `targetRev`, rebuild the alignment check, report it, and ask
+again. Do not write the old proposal. Otherwise run step 9 for the
+proposed actions, then step 10 with `rev = targetRev`.
+
+After `לא`: write nothing for that User Story.
+
+#### Open questions
+
+If this is not a Dry Run, and there are candidate questions
+from step 11:
+
+1. Finish creating, updating, and Removed writes, and step 10.
 2. Return the report with `שאלות פתוחות: ממתין לאישור`
-   and the candidate question text.
+   and the candidate comment text.
 3. Then present the candidate questions in chat, grouped by
    User Story, using this Hebrew prompt:
 
@@ -421,24 +491,31 @@ After posting, give a short Hebrew confirmation of what
 was written on each User Story, or that nothing was written
 because every question was rejected.
 Do not repeat the full report.
+End with the final status line for each User Story from
+"Final status line" in
+[references/report-template.md](references/report-template.md).
 
 ---
 
-### 12. Combined reply
+### 14. Combined reply
 
 Always return one Hebrew report.
 This report is required, including Dry Run, and including when
 nothing was updated.
 
-Put every requested ID in exactly one section.
+Put every requested ID in the report exactly once.
 
-If a section has no items, write `אין`.
+The section names in this file (`אין שינוי`, `עודכנו`,
+`ללא נקודת התחלה`, `לא טופלו`) are internal categories.
+Do not print them as report headings. Start with the verdict line
+from the template, and do not print empty sections or `אין` lines.
 
 After this report, if this is not a Dry Run and there are
-candidate open questions from step 9, present them for
-approval as specified in step 11, then stop and wait.
+`ללא נקודת התחלה` items or candidate open questions from step 11,
+present them for approval as specified in step 13, then stop
+and wait.
 
-If there are no candidate questions, or this is a Dry Run:
+If there is nothing to approve, or this is a Dry Run:
 then stop.
 
 Use the structure, headings, and rules in

@@ -19,27 +19,34 @@ Do not use Bugs, Tasks, or other User Stories as Test Cases.
 
 Read those Test Case IDs with `wit_work_item` `get` or `get_batch`.
 
-Include already-`Removed` Test Cases when computing `baselineDate`.
-Exclude them when matching coverage or updating steps.
+Exclude already-`Removed` Test Cases when matching coverage or
+updating steps.
 
 If a Related item cannot be read, record the failure and continue
 with the items that can be read.
 
 ---
 
-## Baseline date
+## Baseline Revision
 
-`baselineDate` is the latest `System.ChangedDate` among all related
-Test Cases, including `Removed`.
+The baseline is `storedRev`, the User Story Revision in the Suite's
+sync marker. Follow
+`.claude/skills/create-test-cases/references/sync-marker.md`.
 
-Use that timestamp as `asOf` when reading the User Story baseline.
+`targetRev` is the User Story `System.Rev` read at the start of
+this run.
 
-If Azure returns the date without a timezone, keep it as returned
-and pass it to `asOf`. Do not invent a timezone.
+Compare the User Story at `storedRev` to the User Story at
+`targetRev`. Read `storedRev` with `list_revisions`, not `asOf`.
 
+Never use a Test Case `System.ChangedDate` or a date as baseline.
 There is no local snapshot file.
 Do not hash User Story text into the repo.
-Do not treat Assigned To, tags, or Discussion as the baseline.
+
+Only these fields count as a User Story change:
+Title, Description, Acceptance Criteria, Iteration Path, State.
+A Revision that changed only Assigned To, tags, Discussion, or
+other fields is not a change. The marker is not advanced for it.
 
 ---
 
@@ -64,7 +71,7 @@ State compare is exact against Azure's State value.
 
 ## Empty content after it existed
 
-If baseline Description or Acceptance Criteria had text, and the
+If Description or Acceptance Criteria at `storedRev` had text, and the
 current field is empty after normalization:
 
 - Do not invent requirements from the Title.
@@ -75,6 +82,57 @@ current field is empty after normalization:
 
 ---
 
+## No marker
+
+Applies when related Test Cases (not `Removed`) exist and the Suite
+has no marker for this User Story. This covers Test Cases created
+before the marker existed, and a `create-test-cases` run that
+failed before it wrote the marker.
+
+Do not guess a baseline.
+Do not use dates.
+Do not mark the Test Cases as synced on your own.
+
+Put the User Story under `ללא נקודת התחלה` and run an alignment
+check against the User Story at `targetRev`:
+
+- Extract current requirements (see "Extract requirements").
+- Match the existing Test Cases (see "Match existing Test Cases").
+- List each requirement as `מכוסה` or `חסר`.
+- List each Test Case that contradicts the current User Story or
+  covers nothing in it as `לא תואם`.
+- List each unclear match as `לא ברור`.
+
+Propose actions for the gaps: create, update, or `Removed`.
+Follow the same Iteration rules: create only when Iteration
+contains `SPRINT`.
+
+If any item is `לא ברור`, ask about it first. Do not propose a
+starting point until it is resolved.
+
+Write nothing in the first turn. After the report, ask:
+
+```
+ל-US <id> — <title> אין סימון סנכרון.
+בדיקת התאמה מול rev <targetRev>: <n> מכוסות, <n> חסרות, <n> לא תואמים.
+<the proposed actions, one per line, or "אין פערים">
+
+האם לבצע את הפעולות המוצעות ולקבוע נקודת התחלה ב-rev <targetRev>?
+עני כן/לא.
+```
+
+If there are no gaps, ask only:
+`האם לקבוע נקודת התחלה ב-rev <targetRev>?`
+
+- `כן`: run the proposed writes, then verify and write the marker
+  with `rev = targetRev`.
+- `לא`: write nothing. The User Story stays without a marker.
+
+In Dry Run, show the alignment check and the proposed marker, and
+do not ask.
+
+---
+
 ## No related Test Cases
 
 Do not create the first Test Cases from scratch.
@@ -82,13 +140,18 @@ Do not create the first Test Cases from scratch.
 | Current Iteration | Suite found | Action |
 | --- | --- | --- |
 | `PRODUCT` | any | `לא טופלו` — `Product בלי תרחישים` |
-| `SPRINT` | yes | Product → Sprint. Create missing Test Cases in that Suite from the current User Story. |
-| `SPRINT` | no | `לא טופלו` — `אין תרחישים קשורים`. Tell the user to run `create-test-cases`. |
-| neither | any | Stop and ask the user. |
+| `SPRINT` | yes | Product → Sprint. Create missing Test Cases in that Suite from the current User Story |
+| `SPRINT` | no | `לא טופלו` — `אין תרחישים קשורים`. Tell the user to run `create-test-cases` |
+| neither | any | Stop and ask the user |
 
-When Product → Sprint creates the first Test Cases, there is no
-content baseline. Generate from the current User Story using
-`test-case-rules.md`. Do not asOf-compare content.
+When Product → Sprint creates the first Test Cases, there is
+nothing to compare with. Generate from the User Story at
+`targetRev` using `test-case-rules.md`, even when the Suite has no
+marker. Then verify and write the marker with `rev = targetRev`.
+
+This table applies only when the Suite has no marker. When it has
+a marker, use the normal compare (`storedRev` → `targetRev`), even
+if there are no Test Cases.
 
 ---
 
@@ -100,10 +163,24 @@ Search in the User Story's project:
 
 1. `testplan` `list_plans`
 2. `testplan` `list_suites` on candidate plans
-3. Match Suite name to the baseline (`asOf`) User Story Title
-   exactly as it appeared in Azure DevOps
+3. Candidate Suites: Suite name equals the current User Story
+   Title, or any earlier Title. Get earlier Titles from
+   `wit_work_item` `list_revisions` on the User Story.
+4. Read each candidate Suite work item and its marker
+   (`sync-marker.md` "Read the marker").
 
-If not found, try the current User Story Title.
+Pick the Suite:
+
+- Exactly one candidate has a marker with this `us`: use it.
+- Several candidates have a marker with this `us`: stop and ask.
+- No candidate has a marker with this `us`, and exactly one
+  candidate has no marker for any User Story: use it, without a
+  baseline.
+- Otherwise: stop and ask.
+
+If `list_plans` or `list_suites` fails (for example 401 because the
+PAT has no Test Management permission), report it under
+`לא טופלו` with reason `כשל`. Do not continue without a Suite.
 
 Do not nest a new Suite under an existing child Suite.
 
@@ -111,8 +188,6 @@ Do not create a second Suite because the Title changed.
 
 If the Title changed and the Suite was found under the old name,
 keep that Suite and report that its name is still the old Title.
-
-If several Suites match, stop and ask the user.
 
 If no Suite is found and Test Cases must be added:
 
@@ -143,11 +218,11 @@ Do not invent product behavior.
 
 ## Classify the User Story diff
 
-Compare baseline requirements to current requirements.
+Compare requirements at `storedRev` to requirements at `targetRev`.
 
 - **Unchanged:** same meaning after normalization.
-- **Added:** present now, not present at baseline.
-- **Removed:** present at baseline, not present now.
+- **Added:** present at `targetRev`, not at `storedRev`.
+- **Removed:** present at `storedRev`, not at `targetRev`.
 - **Changed:** same topic, different expected behavior.
 
 PRODUCT → SPRINT is a material Iteration change even when
@@ -185,6 +260,10 @@ Do not Removed both.
 
 Do not regenerate Test Cases that still match.
 
+A Test Case created by an earlier run that failed partway counts
+as an existing match. Follow "Resume after a partial failure" in
+`sync-marker.md` before creating anything.
+
 ---
 
 ## Writes
@@ -206,6 +285,11 @@ Update Title:
 Obsolete Test Case:
 
 - `wit_work_item_write` `update` on `System.State` = `Removed`
+
+Sync marker, last and only after every write above succeeded:
+
+- `wit_work_item_write` `update` on the Suite's `System.Description`
+  (`sync-marker.md` "Write the marker")
 
 If `Removed` is not a valid state for Test Case in that project,
 stop and ask. Do not guess `Closed`. Do not delete the work item.
@@ -229,3 +313,7 @@ Do not Removed them only because Iteration is Product.
 User Story Iteration contains `SPRINT`:
 create missing Test Cases for added requirements, including the
 Product → Sprint case when a Suite already exists.
+
+Iteration changed from `PRODUCT` at `storedRev` to `SPRINT` at
+`targetRev`: every current requirement without a matching Test
+Case gets a new Test Case, also when the requirement is unchanged.

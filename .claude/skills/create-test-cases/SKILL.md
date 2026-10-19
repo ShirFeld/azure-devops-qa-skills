@@ -8,7 +8,9 @@ description: >-
   Items with missing content receive a Discussion comment and are skipped.
   Reads the Title, Description, and Acceptance Criteria, generates Hebrew
   QA scenarios, creates them in Test Plans, and links every Test Case
-  to the source User Story using Related. Presents genuine open
+  to the source User Story using Related. After every write succeeds,
+  stores the source User Story Revision as a sync marker in the Suite
+  Description. Presents genuine open
   questions for user approval, then posts only the approved
   questions as a Discussion comment on the User Story instead
   of a Test Case.
@@ -158,6 +160,11 @@ Read:
 - Area Path
 - Iteration Path
 - Team Project
+- Rev (`System.Rev`)
+
+`startRev` is the `System.Rev` from this read. The Test Cases are
+generated from this Revision. See
+`references/sync-marker.md`.
 
 Do not generate scenarios from the Title alone.
 
@@ -318,6 +325,17 @@ Check that an equivalent Suite does not already exist.
 
 Do not create duplicate Suites.
 
+Before creating, check each User Story for existing structure:
+
+- a Suite named with its Title in any Test Plan of the project
+- related Test Cases (State not `Removed`)
+
+If either exists, do not create anything for that User Story.
+This includes a run that failed partway before.
+Put it under `לא נפתחו` with reason
+`קיימים Suite / תרחישים — להריץ update-test-cases`.
+`update-test-cases` completes missing work without duplicates.
+
 If no תקין User Story remains that is not `Removed`:
 create nothing.
 
@@ -415,6 +433,9 @@ for תקין items only:
 - Steps and Expected Results
 - proposed candidate open-questions text
 - Acceptance Criteria coverage
+- the sync marker that would be written, as `Dry Run — לא נכתב`
+
+Do not write the sync marker in Dry Run.
 
 In the test-case report, mark created fields as
 `Dry Run — לא נוצר`.
@@ -483,6 +504,27 @@ the Related link fails:
 - Report the partial failure.
 
 Never create a replacement Test Case to fix a failed relationship.
+
+#### Write the sync marker
+
+Read and follow `references/sync-marker.md`.
+
+For each User Story that received a Suite in this run:
+
+1. Wait until the Suite and every Test Case for that User Story
+   are created, added to the Suite, and linked with `Related`.
+   For a Product User Story, the Suite alone is enough.
+2. Follow "Verify before marking".
+3. If any write for that User Story failed: do not write the
+   marker. Report `סימון סנכרון: לא נשמר — נותר כשל חלקי`.
+4. Follow "User Story changed during the sync".
+5. Write `rev = startRev` in that Suite's Description with
+   "Write the marker". Keep the existing Description content.
+6. If the write fails, follow "Write failure". Do not switch to
+   another storage place.
+
+Write the marker before the open-questions ask. Open-question
+comments do not affect the marker.
 
 Never update the source User Story Title, Description,
 Acceptance Criteria, or State.
@@ -573,6 +615,9 @@ After posting, give a short Hebrew confirmation of what
 was written on each User Story, or that nothing was written
 because every question was rejected.
 Do not repeat the full combined report.
+End with the final status line for each User Story from
+"Final status line" in
+[references/report-template.md](references/report-template.md).
 
 ---
 

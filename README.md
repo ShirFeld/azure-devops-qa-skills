@@ -1,4 +1,4 @@
-# Azure DevOps QA Skills
+# Azure DevOps Skills
 
 Agent skills for Claude Code and Cursor that create Azure DevOps work items, generate and sync test cases, validate required fields, and close linked support items — without opening Azure DevOps by hand.
 

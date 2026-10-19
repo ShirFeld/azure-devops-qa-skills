@@ -1,0 +1,9 @@
+node_modules/
+.playwright-mcp/
+.vscode/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/

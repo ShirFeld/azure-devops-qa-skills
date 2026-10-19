@@ -85,6 +85,22 @@ Supported Azure projects are whatever you listed in `add-item/references/project
 
 Required: a User Story ID. The project is taken from the User Story Area Path / Team Project.
 
+On a successful create, the skill appends a marker to the Suite Description, for example `[qa-sync] us=12345 rev=14`. That line stores the User Story Revision the Test Cases were generated from. Other Description content is left as is. If a write failed partway, the marker is not written.
+
+### Update test cases when a User Story changed
+
+```
+עדכני תרחישים ל-US 12345
+```
+
+- **The comparison point is the Revision in the Suite marker**, not the date Test Cases were last changed. A manual Test Case edit, such as Assigned To, does not move the baseline.
+- **Compared fields:** Title, Description, Acceptance Criteria, Iteration, and State. A change only to assignee, tags, or Discussion does not update Test Cases.
+- **When the marker advances:** only after every write succeeded and was verified. After a partial failure, a later run detects what already exists and finishes only what is missing, without duplicates.
+- **Older Test Cases with no marker:** the agent shows an alignment check against the current User Story and asks before setting a starting point.
+- **Marker write failure:** if the Suite Description cannot be updated, the report says the sync was not marked complete. The agent does not store the marker somewhere else.
+- **Dry Run:** reads only. The marker is not written either.
+- **PAT permissions:** finding the Suite and updating its Description needs Test Management and Work Items, read and write.
+
 ### Close support items after a release
 
 ```

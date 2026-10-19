@@ -16,6 +16,7 @@
 - Suite: <name> (<id>)
 - תרחישים שנוצרו:
   - <test case id> — <title>
+- סימון סנכרון: [qa-sync] us=<id> rev=<startRev> — נשמר / לא נשמר — נותר כשל חלקי / לא נשמר — הסנכרון לא סומן כהושלם / Dry Run — לא נכתב
 - שאלות פתוחות: ממתין לאישור / נכתבו ב-Discussion / אין / Dry Run — לא נכתב / נכשל
 - נוסח שאלות: <visible comment text, or "אין">
 - URL: <url when available>
@@ -26,12 +27,13 @@
 - Test Plan: <name> (<id>)
 - Suite: <name> (<id>)
 - תרחישים: לא נוצרו
+- סימון סנכרון: [qa-sync] us=<id> rev=<startRev> — נשמר / לא נשמר — נותר כשל חלקי / לא נשמר — הסנכרון לא סומן כהושלם / Dry Run — לא נכתב
 - שאלות פתוחות: ממתין לאישור / נכתבו ב-Discussion / אין / Dry Run — לא נכתב / נכשל
 - נוסח שאלות: <visible comment text, or "אין">
 
 ## לא נפתחו
 ### <id> — <title>
-- סיבה: חסר תוכן / Removed / Support / לא נמצא / כשל
+- סיבה: חסר תוכן / Removed / קיימים Suite / תרחישים — להריץ update-test-cases / skip-project / לא נמצא / כשל
 - פירוט: <what is missing, or the skip/failure detail>
 ```
 
@@ -46,7 +48,7 @@ Rules for Part B:
   contains `PRODUCT` and that received a Suite without Test Cases.
   Do not list them under `נפתחו`.
 - `לא נפתחו` is for every remaining requested ID:
-  missing content, Removed, Support, not found, or failed.
+  missing content, Removed, skip-project, not found, or failed.
 - A User Story with missing content must appear under `לא נפתחו`
   even if Discussion was written.
 - Include Test Plan name and ID, Suite names and IDs, URLs when
@@ -64,3 +66,19 @@ Rules for Part B:
   Note that these questions would have been asked for approval.
 - If nothing was created, still show Part B with those IDs under
   `לא נפתחו` or `Suite בלבד` as appropriate.
+- For every item under `נפתחו` or `Suite בלבד`, report
+  `סימון סנכרון`. Show `נשמר` only after the marker was written
+  and confirmed. When the User Story changed during the run, add
+  `ה-US השתנה במהלך היצירה (rev <a> → <b>) — יש להריץ update-test-cases`.
+
+## Final status line
+
+After the user answers the open-questions ask and the approved
+comments are posted (or none are), end the short confirmation
+with one line per User Story that received a Suite:
+
+```
+<✅ / ⚠️> <id> — <נוצרו <n> תרחישים / Suite בלבד (Product)>. סימון סנכרון: rev <startRev> (<נשמר / לא נשמר>). שאלות פתוחות: <נכתבו <n> ב-Discussion / לא נכתבו (כולן נדחו)>.
+```
+
+Use `⚠️` when a write or the marker failed, and say what failed.

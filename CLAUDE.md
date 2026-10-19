@@ -15,7 +15,7 @@ This repository is a **template**. Sample organization, project, people, and URL
 
 Editing these changes more than one skill:
 
-- `create-test-cases/references/projects.md`, `test-case-rules.md`, `qa-analysis.md` — also read by `update-test-cases`.
+- `create-test-cases/references/projects.md`, `test-case-rules.md`, `qa-analysis.md`, `sync-marker.md` — also read by `update-test-cases`.
 - `validate-work-item-content/SKILL.md`, `references/azure.md`, `references/report-template.md` — `create-test-cases` runs this skill first and reuses its report.
 
 Keep report templates and examples in each skill's `references/`, not in `SKILL.md`. Keep `SKILL.md` around 500 lines or less.

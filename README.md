@@ -12,9 +12,10 @@ This repository is a **template**. Sample projects, people, URLs, and identity I
 
 | Skill | What it does | When to use |
 | --- | --- | --- |
-| **add-item** | Creates a Bug, User Story, or Top Level Task | `add bug` / `תפתחי באג` / `תפתחי user story` |
+| **add-item** | Creates a Bug, User Story, or Top Level Task, and can attach images and videos | `add bug` / `תפתחי באג` / `תפתחי user story` |
+| **recurring-items** | Copies a recurring Top Level Task and its children onto the current sprint | `recurring items` / `תפתחי את האייטמים החודשיים` |
 | **create-test-cases** | Creates a Test Plan, Suite, and Hebrew QA scenarios from a User Story | `write test cases` / `תכתבי תרחישי בדיקה` |
-| **update-test-cases** | Syncs existing test cases when the User Story changed | `update test cases` / `עדכני תרחישים` |
+| **update-test-cases** | Syncs existing test cases when the User Story changed, and can retire them on request | `update test cases` / `עדכני תרחישים` |
 | **validate-work-item-content** | Checks Description (and Acceptance Criteria when configured) and comments when missing | `validate work item` / `בדקי אייטם` |
 | **close-items** | Closes linked support items for a release version or a source work item ID | `close items` / `סגרי אייטמים לגרסה 1.31.0` |
 
@@ -77,6 +78,18 @@ The type is chosen only from explicit wording. If the type is unclear, the agent
 
 Supported Azure projects are whatever you listed in `add-item/references/projects.md`. If the project is unclear, the agent asks before creating the item.
 
+Screenshots pasted into the chat are attached after the item exists. A video has to be a file path in the request (`.mp4`, `.mov`, `.webm`, `.avi`, `.mkv`, `.m4v`). The script adds a Hebrew label and shows images inline; each video is a link.
+
+### Recurring items
+
+```
+תפתחי את האייטמים החודשיים
+```
+
+Copies one configured Top Level Task and its Child items onto the current sprint, and replaces a month name or a date when the template says so. Button labels, template IDs, project, team, and assignee are samples in `recurring-items/references/templates.md`. Replace them before use.
+
+`auto` is for a scheduled run. It creates only the buttons that are due this month and not already created, and it does not ask questions.
+
 ### Test cases from a User Story
 
 ```
@@ -99,6 +112,7 @@ On a successful create, the skill appends a marker to the Suite Description, for
 - **Older Test Cases with no marker:** the agent shows an alignment check against the current User Story and asks before setting a starting point.
 - **Marker write failure:** if the Suite Description cannot be updated, the report says the sync was not marked complete. The agent does not store the marker somewhere else.
 - **Dry Run:** reads only. The marker is not written either.
+- **Remove on request:** when you ask to delete or replace a User Story's Test Cases, they are set to Removed (or Closed when that project has no Removed), unlinked from the User Story, and new ones can be created in the same Suite. Work items are not hard-deleted.
 - **PAT permissions:** finding the Suite and updating its Description needs Test Management and Work Items, read and write.
 
 ### Close support items after a release
@@ -128,7 +142,8 @@ azure-devops-qa-skills/
 │       ├── add-item/
 │       │   ├── SKILL.md
 │       │   ├── references/               # projects, writing rules, login URLs
-│       │   └── scripts/                  # attach images after the work item exists
+│       │   └── scripts/                  # attach images and videos after the work item exists
+│       ├── recurring-items/
 │       ├── create-test-cases/
 │       ├── update-test-cases/
 │       ├── validate-work-item-content/
@@ -156,6 +171,7 @@ azure-devops-qa-skills/
 | Environment `ADO_ORG` | `your-org` |
 | `add-item/references/projects.md` | organization URL, assignee table, project / team / area / iteration |
 | `add-item/references/login.md` | app login URLs |
+| `recurring-items/references/templates.md` | organization, project, team, assignee, template IDs, button labels, replacement text |
 | `create-test-cases/references/projects.md` | project names and test-plan settings |
 | `create-test-cases/references/qa-analysis.md` | mention names and Azure identity IDs |
 | `validate-work-item-content/references/azure.md` | skip-project, required creators, mention IDs |
@@ -168,5 +184,5 @@ Identity IDs in the sample files are **fake placeholders**. Copy real IDs from A
 ## Notes
 
 - Do not share PATs, passwords, or tokens.
-- Skills talk to Azure DevOps through MCP, not Azure CLI. Exception: the `add-item` scripts that attach images.
+- Skills talk to Azure DevOps through MCP, not Azure CLI. Exception: the `add-item` scripts that attach images and videos.
 - Business rules (projects, assignees, Test Plans) belong in the skill `references/` files.

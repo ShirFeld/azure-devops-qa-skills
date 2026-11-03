@@ -114,8 +114,8 @@ If the user asked not to use the template, put their text in
 Do not add שחזור / באג / תוצאה רצויה headings.
 Do not add the mandatory login steps from `login.md`.
 
-After a successful image attach, append `<img src="URL" />` after all
-text in ReproSteps.
+Images and videos are added after all text in ReproSteps by
+`scripts/attach-images.ps1` (see SKILL.md step 10).
 
 ---
 
@@ -150,8 +150,8 @@ still inside the same `div`.
 If the user asked not to use the template, put their text in
 `System.Description` inside `<div dir="rtl">`.
 
-After a successful image attach, append `<img src="URL" />` after all
-text in Description.
+Images and videos are added after all text in Description by
+`scripts/attach-images.ps1` (see SKILL.md step 10).
 
 ---
 
@@ -215,5 +215,5 @@ If the user asked not to use the template, put their text in
 Still write at least one short Acceptance Criterion from what they
 asked for. Do not leave Acceptance Criteria empty.
 
-After a successful image attach, append `<img src="URL" />` after all
-text in Description. Do not put images in Acceptance Criteria.
+Images and videos are added after all text in Description by
+`scripts/attach-images.ps1` (see SKILL.md step 10). Do not put files in Acceptance Criteria.

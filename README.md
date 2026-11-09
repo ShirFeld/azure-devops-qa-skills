@@ -86,7 +86,7 @@ Screenshots pasted into the chat are attached after the item exists. A video has
 תפתחי את האייטמים החודשיים
 ```
 
-Copies one configured Top Level Task and its Child items onto the current sprint, and replaces a month name or a date when the template says so. Button labels, template IDs, project, team, and assignee are samples in `recurring-items/references/templates.md`. Replace them before use.
+Copies one configured Top Level Task and its Child items onto the current sprint, and replaces a month name or a date when the template says so. A button can reuse another button's template, skip Child items that match a filter, and shorten the title. The sample `דיווח קצר` does that, and it is manual only. Button labels, template IDs, project, team, and assignee are samples in `recurring-items/references/templates.md`. Replace them before use.
 
 `auto` is for a scheduled run. It creates only the buttons that are due this month and not already created, and it does not ask questions.
 

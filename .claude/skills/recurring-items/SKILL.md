@@ -8,13 +8,15 @@ description: >-
   `auto`, used by a scheduled task) creates the monthly items that are
   due and not yet created this month, tags them, and sends a
   notification. Updates the month name or date in the text where the
-  template defines it. Sample button labels are fictional: סקירה
-  חודשית, עדכון אמצע חודש, דיווח תחילת חודש. Replace those labels in
-  this description when you change the Buttons table. Use when the
-  user says recurring items, אייטמים חוזרים, אייטמים חודשיים,
-  תפתח את האייטמים החודשיים, names a button label from
-  references/templates.md, or asks to create the same items as last
-  month.
+  template defines it. A button may reuse another button's template,
+  skip Child items listed in its Child filter, and shorten the title.
+  Sample button labels are fictional: סקירה חודשית, עדכון אמצע חודש,
+  דיווח תחילת חודש, דיווח קצר. Replace those labels in this
+  description when you change the Buttons table. Use when the user
+  says recurring items, אייטמים חוזרים, אייטמים חודשיים,
+  תפתח את האייטמים החודשיים, דיווח קצר, רק דיווח קצר, names a button
+  label from references/templates.md, or asks to create the same
+  items as last month.
 argument-hint: <optional: auto | button number or label from references/templates.md>
 ---
 
@@ -81,8 +83,10 @@ Do not use Azure CLI, PowerShell, Bash, REST calls, or local scripts.
 #### Manual
 
 If the user's request or the argument names a button by number or
-label (match the label loosely against the Buttons table in
-`references/templates.md`), use it.
+label, match it loosely against the Buttons table in
+`references/templates.md` and use it. When one label contains
+another, the longer label wins. In the sample table, `דיווח תחילת`
+is button 3, and `דיווח קצר` or `רק קצר` is button 4.
 
 Otherwise ask with `AskUserQuestion`, one question, single select,
 header `אייטמים חוזרים`, question `איזה אייטמים לפתוח?`, and the
@@ -131,7 +135,10 @@ no notification, and stop.
    `System.Title`, `System.WorkItemType`, `System.Description`,
    `Microsoft.VSTS.Scheduling.OriginalEstimate`.
 
-If the template has no Child items, create only the Top Level Task.
+If the button has a Child filter in `references/templates.md`, keep
+only the Child items that pass it and ignore the rest.
+
+If no Child items are left, create only the Top Level Task.
 
 ### 3. Build the new text
 

@@ -293,9 +293,63 @@ Sync marker, last and only after every write above succeeded:
 
 If `Removed` is not a valid state for Test Case in that project,
 stop and ask. Do not guess `Closed`. Do not delete the work item.
+This applies to obsolete Test Cases the sync finds on its own.
+When the user asked to remove the Test Cases, follow
+"Retire Test Cases on request".
 
 Do not update the User Story Title, Description, Acceptance
 Criteria, or State.
+
+---
+
+## Retire Test Cases on request
+
+Applies only when the user explicitly asks to remove, delete, or
+replace the Test Cases of a User Story (for example `תמחק`,
+`תסיר`, `תעביר ל-Removed`, `תמחק ותעשה חדשים`).
+
+Never hard-delete a work item.
+
+1. List the Test Cases to retire: the User Story's related and
+   Tested By Test Cases in its project, and the Test Cases in its
+   Suite. Do not include Test Cases from another project unless
+   the user names them. Show the list and ask for approval.
+   Write nothing before the user answers `כן`.
+2. For each approved Test Case, set `System.State`:
+   - `Removed` when the project's Test Case type has it
+     (`wit_work_item` `get_type`).
+   - Otherwise `Closed`.
+3. Remove the Test Case's `Related` and `Tested By` links to the
+   User Story with `wit_work_item_link_write` `unlink` on the
+   User Story. Pass `url` with the Test Case's work item URL,
+   one link per call. Without `url`, `unlink` removes every link
+   of that type, including the Test Cases you keep.
+4. Removing it from the Suite depends on the Suite type
+   (`Microsoft.VSTS.TCM.TestSuiteType` on the Suite work item):
+   - `Requirement Based`: the Suite lists the Test Cases with a
+     `Tested By` link to the User Story. Step 3 already removed it.
+   - `Static`: Azure DevOps MCP cannot remove a Test Case from it.
+     Leave it in the Suite and tell the user to remove it in
+     Test Plans if they want it out.
+   Confirm with `testplan` `list_cases` and report which retired
+   Test Cases are still in the Suite.
+5. Do not change Title, Steps, or anything else on it.
+
+A retired Test Case counts as `Removed` for every other rule in
+this file: skip it when matching coverage, and skip `Closed`
+Test Cases when searching the Suite in "Resume after a partial
+failure".
+
+If the user also asked for new Test Cases:
+
+- Generate them from the User Story at `targetRev` with
+  `test-case-rules.md`, as in "No related Test Cases".
+- Put them in the existing Suite. Do not create a second Suite.
+- Create them only after every retire write succeeded.
+- Then verify and write the marker with `rev = targetRev`.
+
+If a retire write fails, do not create new Test Cases. Report
+the failure.
 
 ---
 

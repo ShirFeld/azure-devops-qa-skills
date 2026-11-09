@@ -10,7 +10,8 @@ description: >-
   add item, תפתח אייטם, פתח אייטם, צור אייטם,
   user story, US, סטורי, תפתח סטורי, תפתח user story,
   top level task, TLT, משימה עליונה, טופ לבל, תפתח טאסק,
-  including when they attach screenshots or pasted images,
+  including when they attach screenshots, pasted images, or video
+  file paths (סרטון, וידאו),
   and when they ask to שייך, תשייך, קשר, or Related the item
   to a work item ID.
 argument-hint: <type + project name + title and description; optional assignee, current sprint, related work item ID>
@@ -70,7 +71,7 @@ to create the work item.
   to create the work item.
 - REST and the helper scripts are allowed **only** via
   `scripts/extract-chat-images.ps1` and `scripts/attach-images.ps1`,
-  and **only** to attach images from this request after the work item
+  and **only** to attach images and videos from this request after the work item
   already exists.
 - Never guess:
   - Work item type
@@ -87,7 +88,7 @@ to create the work item.
 - Never create a second work item to correct the first one.
 - Do not modify an existing work item unless the user explicitly asks,
   except:
-  - one update after create to attach images from this request
+  - one update after create to attach images and videos from this request
   - creating a Related link to a work item ID the user explicitly provided
 - Do not create, update, or delete any other Azure DevOps work item.
   A Related link to a user-provided work item ID is allowed.
@@ -98,7 +99,8 @@ to create the work item.
   or report link failures. Then stop.
 - Do not perform an additional read/update after successful creation
   unless required to obtain the created item's ID or URL, to attach
-  images from this request, or to create the requested Related links.
+  images and videos from this request, or to create the requested
+  Related links.
 - If the user explicitly asks for a preview, dry run, or asks what would
   be created, do not create anything in Azure DevOps.
 
@@ -419,16 +421,25 @@ Pass Azure `workItemType` exactly:
 - `User Story`
 - `Top Level Task`
 
-Do not put images in HTML at create time. Images are added later
-by `scripts/attach-images.ps1`.
+Do not put images, videos, or an "attached" note in HTML at create
+time. They are added later by `scripts/attach-images.ps1`.
 
 ---
 
-### 10. Attach images if the user sent any
+### 10. Attach images and videos if the user sent any
 
-Use only images the user attached in **this** request: screenshots
-pasted or dragged into the chat, or image file paths the user wrote
-in the request.
+Use only files from **this** request: screenshots pasted or dragged
+into the chat, or image and video file paths the user wrote in the
+request.
+
+Supported types:
+
+- Images: `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.bmp`
+- Videos: `.mp4`, `.mov`, `.webm`, `.avi`, `.mkv`, `.m4v`
+
+Videos pasted into the chat do not reach the skill as files. If the
+user says they attached a video but gave no video file path, create the
+item, attach what exists, and ask for the video's file path.
 
 Images pasted into the Claude Code chat are not files on disk.
 Before attaching, turn them into files:
@@ -441,29 +452,33 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .claude/skills/add-item/scri
 - It reads the latest user message in the current session transcript
   and prints one `IMAGE_PATH=<path>` line per pasted image, in order.
 - `NO_IMAGES` means nothing was pasted in this request: skip this step,
-  unless the user wrote image file paths in the request.
-- If the user wrote image file paths, use those paths. If they also
+  unless the user wrote image or video file paths in the request.
+- If the user wrote file paths, use those paths. If they also
   pasted images, attach the pasted images first, then the paths.
 - If the script fails, or prints `NO_IMAGES` although you can see
   images in this request, say that image attach failed and ask the
   user to save the screenshots to files and send the paths.
   Do not create the work item again.
 
-- Do not search the repo for images.
+- Do not search the repo for images or videos.
 - Do not ask if none were sent.
-- Zero images: skip this step.
-- One or more: keep the user's order and attach all of them.
-- Do not put screenshot analysis into Title or body fields.
-  The images are the evidence.
-- Place images **after all text**.
+- Zero files: skip this step.
+- One or more: keep the user's order and attach all of them in one
+  script call.
+- Do not put screenshot or video analysis into Title or body fields.
+  The files are the evidence.
+- Files go **after all text**, under a Hebrew label the script adds:
+  `מצורפת תמונה:` / `מצורפות תמונות:` with the images shown inline, then
+  `מצורף סרטון:` / `מצורפים סרטונים:` with a link per video. Do not
+  write these labels yourself.
 
 Create-then-attach order:
 
-1. Create the work item with MCP (full text, no images).
-2. If there are images, get their paths (see above), then run:
+1. Create the work item with MCP (full text, no files).
+2. If there are files, get their paths (see above), then run:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .claude/skills/add-item/scripts/attach-images.ps1 -Project "<project>" -WorkItemId <id> -ImagePaths "<path1>","<path2>"
+powershell -NoProfile -ExecutionPolicy Bypass -File .claude/skills/add-item/scripts/attach-images.ps1 -Project "<project>" -WorkItemId <id> -FilePaths "<path1>","<path2>"
 ```
 
 The script authenticates with the `AZURE_DEVOPS_EXT_PAT` environment
@@ -472,17 +487,21 @@ paste a token into the chat, and never print it. If the script reports
 missing credentials, tell the user to set `AZURE_DEVOPS_EXT_PAT` as a
 Windows user environment variable and restart Claude.
 
-The script writes images into ReproSteps for a Bug, and into
-Description for a User Story or Top Level Task.
+The script writes the files into ReproSteps for a Bug, and into
+Description for a User Story or Top Level Task. It also adds each file
+to the work item's Attachments.
 
-3. If image attach failed, say that explicitly. Continue to the
-   Related-link step if one was requested. Otherwise return the
-   type, title, ID, URL, Assigned To, and Iteration Path, then stop.
+3. If attach failed, say that explicitly, with the script's error.
+   A failed video upload reports the file size: if it looks too large
+   for an Azure DevOps attachment, tell the user and suggest a shorter
+   or compressed video. Continue to the Related-link step if one was
+   requested. Otherwise return the type, title, ID, URL, Assigned To,
+   and Iteration Path, then stop.
 
 If the script exits with code `2`, it uploaded the files but could not
-update the work item. Read the `ATTACHMENT_URL=` lines from stdout and
+update the work item. Read the `ATTACHMENT_HTML=` line from stdout and
 update the HTML field through Azure DevOps MCP: keep the existing HTML
-and append `<img src="URL" />` tags after all text.
+and append that HTML after all text, inside the closing `</div>`.
 
 - Bug: `Microsoft.VSTS.TCM.ReproSteps`
 - User Story / Top Level Task: `System.Description`
@@ -497,7 +516,7 @@ was created.
 If the user did not ask to link and did not give a work item ID
 for linking, skip this step.
 
-After the work item exists (and after image attach if any):
+After the work item exists (and after image and video attach if any):
 
 1. Read each target work item through Azure DevOps MCP to confirm
    it exists.
@@ -534,6 +553,6 @@ Return:
 - Assigned To
 - Iteration Path
 - linked work item IDs, if any Related links were created
-- any image-attach or link failures
+- any image/video attach or link failures
 
 Then stop.

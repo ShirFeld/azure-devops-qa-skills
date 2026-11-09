@@ -1,6 +1,7 @@
-# Uploads images to an Azure DevOps work item and appends them under the
-# HTML body field: ReproSteps for Bug, Description for User Story and
-# Top Level Task.
+﻿# Uploads images and videos to an Azure DevOps work item and appends them
+# under the HTML body field: ReproSteps for Bug, Description for User Story
+# and Top Level Task. Images are shown inline, videos as links, each group
+# under a Hebrew label (מצורפת תמונה / מצורף סרטון).
 # Auth order: env PAT/token, az devops CLI credential, Azure CLI, Git credential.
 # Do not print credentials.
 
@@ -13,6 +14,7 @@ param(
     [int]$WorkItemId,
 
     [Parameter(Mandatory = $true)]
+    [Alias("FilePaths")]
     [string[]]$ImagePaths
 )
 
@@ -27,6 +29,18 @@ if (-not $Organization) {
     throw "ADO_ORG is not set. Set it to your Azure DevOps organization name as a Windows user environment variable."
 }
 $ApiVersion = "7.1"
+
+$ImageExtensions = @(".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp")
+$VideoExtensions = @(".mp4", ".mov", ".webm", ".avi", ".mkv", ".m4v")
+
+function Get-AttachmentKind {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $extension = [IO.Path]::GetExtension($Path).ToLowerInvariant()
+    if ($ImageExtensions -contains $extension) { return "image" }
+    if ($VideoExtensions -contains $extension) { return "video" }
+    return $null
+}
 
 function Get-AuthorizationValueFromSecret {
     param([Parameter(Mandatory = $true)][string]$Secret)
@@ -212,7 +226,8 @@ function Send-Attachment {
 
         $responseBody = Get-Content -LiteralPath $outFile -Raw -ErrorAction SilentlyContinue
         if ($httpCode -notmatch "^2") {
-            throw "Attachment upload failed for '$FilePath' (HTTP $httpCode): $responseBody"
+            $sizeMb = [math]::Round((Get-Item -LiteralPath $FilePath).Length / 1MB, 1)
+            throw "Attachment upload failed for '$FilePath' ($sizeMb MB, HTTP $httpCode): $responseBody"
         }
 
         return $responseBody | ConvertFrom-Json
@@ -223,26 +238,48 @@ function Send-Attachment {
     }
 }
 
-function Add-ImagesToHtml {
+function Get-AttachmentsHtml {
+    param([Parameter(Mandatory = $true)]$Uploaded)
+
+    $images = @($Uploaded | Where-Object { $_.Kind -eq "image" })
+    $videos = @($Uploaded | Where-Object { $_.Kind -eq "video" })
+    $parts = @()
+
+    if ($images.Count -gt 0) {
+        $label = if ($images.Count -eq 1) { "מצורפת תמונה:" } else { "מצורפות תמונות:" }
+        $tags = ($images | ForEach-Object { "<img src=`"$($_.Url)`" />" }) -join "<br />"
+        $parts += "<br /><b>$label</b><br />$tags"
+    }
+
+    if ($videos.Count -gt 0) {
+        $label = if ($videos.Count -eq 1) { "מצורף סרטון:" } else { "מצורפים סרטונים:" }
+        $links = ($videos | ForEach-Object {
+                $name = [Net.WebUtility]::HtmlEncode($_.FileName)
+                "<a href=`"$($_.Url)`">$name</a>"
+            }) -join "<br />"
+        $parts += "<br /><b>$label</b><br />$links"
+    }
+
+    return ($parts -join "<br />")
+}
+
+function Add-AttachmentsToHtml {
     param(
         [string]$Html,
-        [Parameter(Mandatory = $true)][string[]]$AttachmentUrls
+        [Parameter(Mandatory = $true)][string]$Block
     )
 
-    $imgTags = (
-        $AttachmentUrls | ForEach-Object { "<img src=`"$($_)`" />" }
-    ) -join "<br />`n  "
-    $block = "<br />`n  $imgTags"
+    $Block = "<br />$Block"
 
     if ([string]::IsNullOrWhiteSpace($Html)) {
-        return "<div dir=`"rtl`">$block`n</div>"
+        return "<div dir=`"rtl`">$Block</div>"
     }
 
     if ($Html -match "</div>\s*$") {
-        return [regex]::Replace($Html, "</div>\s*$", "$block`n</div>")
+        return [regex]::Replace($Html, "</div>\s*$", { param($m) "$Block</div>" })
     }
 
-    return "$Html$block"
+    return "$Html$Block"
 }
 
 function Write-UploadedUrls {
@@ -251,16 +288,28 @@ function Write-UploadedUrls {
     foreach ($item in $Uploaded) {
         Write-Output "ATTACHMENT_URL=$($item.Url)"
     }
+    Write-Output "ATTACHMENT_HTML=$(Get-AttachmentsHtml -Uploaded $Uploaded)"
 }
 
 try {
+    # powershell -File passes "a","b" as one string "a,b". Split it back.
+    $ImagePaths = @(
+        $ImagePaths |
+            ForEach-Object { $_ -split "," } |
+            ForEach-Object { $_.Trim().Trim('"', "'") } |
+            Where-Object { $_ }
+    )
+
     if (-not $ImagePaths -or $ImagePaths.Count -eq 0) {
-        throw "No image paths were provided."
+        throw "No file paths were provided."
     }
 
     foreach ($path in $ImagePaths) {
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
-            throw "Image file not found: $path"
+            throw "File not found: $path"
+        }
+        if (-not (Get-AttachmentKind -Path $path)) {
+            throw "Unsupported file type: $path. Supported: $($ImageExtensions + $VideoExtensions -join ', ')"
         }
     }
 
@@ -282,6 +331,7 @@ try {
         $uploaded += [pscustomobject]@{
             FileName = $fileName
             Url      = [string]$result.url
+            Kind     = Get-AttachmentKind -Path $path
         }
     }
 
@@ -296,7 +346,7 @@ try {
             "System.Description"
         }
         $currentHtml = [string]$workItem.fields.$htmlField
-        $newHtml = Add-ImagesToHtml -Html $currentHtml -AttachmentUrls @($uploaded.Url)
+        $newHtml = Add-AttachmentsToHtml -Html $currentHtml -Block (Get-AttachmentsHtml -Uploaded $uploaded)
 
         $patch = @()
         foreach ($item in $uploaded) {
@@ -332,13 +382,15 @@ try {
             -ContentType "application/json-patch+json" `
             -Body $patchJson | Out-Null
 
-        Write-Output "Attached $($uploaded.Count) image(s) to work item $WorkItemId."
+        $imageCount = @($uploaded | Where-Object { $_.Kind -eq "image" }).Count
+        $videoCount = @($uploaded | Where-Object { $_.Kind -eq "video" }).Count
+        Write-Output "Attached $imageCount image(s) and $videoCount video(s) to work item $WorkItemId."
         exit 0
     }
     catch {
         Write-Output "UPLOADED_NEEDS_MCP_PATCH"
         Write-UploadedUrls -Uploaded $uploaded
-        [Console]::Error.WriteLine("Images uploaded, but the work item could not be updated with this login. Use MCP to add the image URLs to the HTML body field.")
+        [Console]::Error.WriteLine("Files uploaded, but the work item could not be updated with this login. Use MCP to append ATTACHMENT_HTML to the HTML body field.")
         exit 2
     }
 }

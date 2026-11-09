@@ -11,6 +11,9 @@ description: >-
   and asks before setting a starting point. Does not run
   validate-work-item-content.
   Does not create Test Cases from scratch when none exist.
+  When the user asks to remove or replace a User Story's Test Cases,
+  retires them (Removed, or Closed when Removed does not exist) and
+  can create new ones in the same Suite.
   Use when the user asks to update test cases, refresh test cases,
   sync test cases, check if a User Story changed before testing,
   עדכון תרחישים, סנכרן תרחישים, בדוק שינוי ב-US, or לפני בדיקות
@@ -308,6 +311,10 @@ If this is not a Dry Run:
   `System.State` to `Removed` with `wit_work_item_write`.
   If the Test Case type has no `Removed` state, stop and ask.
   Do not guess `Closed`.
+- The user asked to remove, delete, or replace Test Cases →
+  follow "Retire Test Cases on request" in
+  `references/sync-rules.md`. There, `Closed` is used when
+  `Removed` does not exist.
 
 If Test Case creation succeeds but adding it to the Suite or
 creating the Related link fails:
